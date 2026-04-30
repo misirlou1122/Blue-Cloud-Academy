@@ -57,15 +57,12 @@ $serverReq = [System.Security.Cryptography.X509Certificates.CertificateRequest]:
 
 $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
 $san.AddDnsName("localhost")
-$san.AddDnsName("greenlight")
-$san.AddDnsName("greenlight.local")
 $san.AddDnsName("az900-coach.local")
 $san.AddIpAddress([System.Net.IPAddress]::Parse("127.0.0.1"))
 Get-LocalIPv4Addresses | ForEach-Object {
     $san.AddIpAddress([System.Net.IPAddress]::Parse($_))
     $dashIp = $_.Replace(".", "-")
-    $san.AddDnsName("greenlight.$dashIp.sslip.io")
-    $san.AddDnsName("beyonce-coded.$dashIp.sslip.io")
+    $san.AddDnsName("az900-coach.$dashIp.sslip.io")
 }
 
 $serverReq.CertificateExtensions.Add($san.Build())
