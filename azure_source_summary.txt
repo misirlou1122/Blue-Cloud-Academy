@@ -1,0 +1,4 @@
+AZ-900-PowerPoint-01-1.pptx: 22 text slides
+AZ-900-PowerPoint-02-1.pptx: 56 text slides
+AZ-900-PowerPoint-03-1.pptx: 35 text slides
+Azure Study Guide.pdf: 1069 pages, 1067 text pages
