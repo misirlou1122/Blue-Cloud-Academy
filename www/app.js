@@ -680,7 +680,7 @@ function renderHome() {
   const p = progress();
   return `
     <main class="screen">
-      ${topbar("AZ-900 Coach")}
+      ${topbar("Azure BlueAcademy")}
       <section class="hero-stat" aria-label="Study stats">
         <div class="stat-pill"><strong>${p.doneLessons}/${p.totalLessons}</strong><span>lessons</span></div>
         <div class="stat-pill"><strong>45</strong><span>final reps</span></div>
@@ -694,7 +694,7 @@ function renderHome() {
           </button>
         `).join("")}
       </section>
-      <p class="source-note">Built from your AZ-900 class decks/study guide and Microsoft Learn AZ-900 objectives updated January 14, 2026.</p>
+      <p class="source-note">Built from your Azure Fundamentals study material/study guide and Microsoft Learn AZ-900 objectives updated January 14, 2026.</p>
     </main>
   `;
 }
