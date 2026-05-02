@@ -1,9 +1,10 @@
-const CACHE_NAME = "blue-cloud-academy-v15";
+const CACHE_NAME = "blue-cloud-academy-v17";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./i18n/es.json",
   "./manifest.webmanifest",
   "./assets/icon-192.png",
   "./assets/icon-512.png"

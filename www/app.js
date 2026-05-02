@@ -3,6 +3,7 @@
 let touchStartX = 0;
 let touchEndX = 0;
 let translationRun = 0;
+const languagePackCache = {};
 
 const iconPaths = {
   cloud: '<path d="M17 18H8a5 5 0 1 1 1.3-9.8A7 7 0 0 1 23 10a4 4 0 0 1-1 8h-1"/>',
@@ -1365,6 +1366,9 @@ const ORIGINAL_DATA = {
 };
 
 const DATA_TRANSLATION_SKIP_KEYS = new Set(["id", "topic", "icon", "color", "kind"]);
+const LANGUAGE_PACK_URLS = {
+  es: "./i18n/es.json"
+};
 
 const state = {
   screen: "home",
@@ -1554,12 +1558,34 @@ async function localizeData(language) {
     state.translationError = "";
     return;
   }
-  const localized = await translateDataSet(ORIGINAL_DATA, language);
+  const packTranslations = await loadLanguagePack(language);
+  if (!packTranslations) throw new Error("Spanish language pack could not load.");
+  const localized = applyTranslationMapToDataSet(ORIGINAL_DATA, packTranslations);
   assertSpanishDataLoaded(localized);
   replaceArrayContents(topics, localized.topics);
   replaceArrayContents(fullQuestionBank, localized.fullQuestionBank);
   replaceArrayContents(flashCardBank, localized.flashCardBank);
   state.translationError = "";
+}
+
+function applyTranslationMapToDataSet(data, translations) {
+  const localized = deepClone(data);
+  translateStringsInPlace(localized, translations);
+  return localized;
+}
+
+async function loadLanguagePack(language) {
+  if (!LANGUAGE_PACK_URLS[language]) return null;
+  if (languagePackCache[language]) return languagePackCache[language];
+  try {
+    const response = await fetch(LANGUAGE_PACK_URLS[language], { cache: "force-cache" });
+    if (!response.ok) throw new Error("Language pack not found");
+    const pack = await response.json();
+    languagePackCache[language] = pack.translations || {};
+    return languagePackCache[language];
+  } catch {
+    return null;
+  }
 }
 
 async function translateDataSet(data, language) {
@@ -1687,39 +1713,16 @@ async function applyLanguage() {
 }
 
 async function getTranslations(texts, language, options = {}) {
-  const cache = load("bca-translation-cache-v2", {});
-  const languageCache = cache[language] || {};
+  const packTranslations = await loadLanguagePack(language);
   const output = {};
-  const missing = [];
   texts.forEach((text) => {
     if (!text || text.length > 900) return;
     if (language === "es" && uiTranslations[text]) output[text] = uiTranslations[text];
-    else if (languageCache[text]) output[text] = languageCache[text];
-    else missing.push(text);
+    else if (packTranslations?.[text]) output[text] = packTranslations[text];
   });
-  if (!missing.length) return output;
-  try {
-    for (let index = 0; index < missing.length; index += 80) {
-      const batch = missing.slice(index, index + 80);
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texts: batch, to: language })
-      });
-      if (!response.ok) throw new Error("Translation request failed");
-      const data = await response.json();
-      Object.entries(data.translations || {}).forEach(([source, translated]) => {
-        output[source] = translated;
-        languageCache[source] = translated;
-      });
-    }
-    cache[language] = languageCache;
-    save("bca-translation-cache-v2", cache);
-  } catch (error) {
-    if (options.throwOnFailure) throw error;
-    missing.forEach((text) => {
-      if (language === "es" && uiTranslations[text]) output[text] = uiTranslations[text];
-    });
+  if (options.throwOnFailure) {
+    const missingRequiredText = texts.some((text) => text && text.length <= 900 && !output[text]);
+    if (missingRequiredText) throw new Error("Language pack is missing required text.");
   }
   return output;
 }
@@ -2739,7 +2742,12 @@ if ("serviceWorker" in navigator) {
 
 async function initializeApp() {
   document.documentElement.lang = state.language === "es" ? "es" : "en";
-  await localizeData(state.language);
+  try {
+    await localizeData(state.language);
+  } catch (error) {
+    state.translationError = error.message || "Translation failed";
+    restoreEnglishData();
+  }
   render();
 }
 
