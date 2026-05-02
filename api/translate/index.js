@@ -1,8 +1,8 @@
 "use strict";
 
-const endpoint = process.env.TRANSLATOR_ENDPOINT || "https://api.cognitive.microsofttranslator.com";
-const key = process.env.TRANSLATOR_KEY;
-const region = process.env.TRANSLATOR_REGION;
+const endpoint = (process.env.TRANSLATOR_ENDPOINT || "https://api.cognitive.microsofttranslator.com").trim().replace(/\/+$/, "");
+const key = (process.env.TRANSLATOR_KEY || "").trim();
+const region = (process.env.TRANSLATOR_REGION || "").trim().toLowerCase();
 const protectedTerms = [
   "Blue Cloud Academy",
   "Microsoft Azure",
