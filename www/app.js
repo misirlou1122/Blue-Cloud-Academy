@@ -1387,7 +1387,8 @@ const state = {
   flashSaved: load("az900-saved-flashcards", {}),
   searchQuery: "",
   language: load("bca-language", "en"),
-  translating: false
+  translating: false,
+  translationError: ""
 };
 
 const uiTranslations = {
@@ -1466,7 +1467,8 @@ const uiTranslations = {
   "Monitoring": "Monitoreo",
   "Final Exam Map": "Mapa del examen final",
   "Start 45-question final practice": "Comenzar práctica final de 45 preguntas",
-  "Updating language...": "Actualizando idioma..."
+  "Updating language...": "Actualizando idioma...",
+  "Spanish translation could not load. Check Azure Translator settings, then tap Español again.": "La traducción al español no pudo cargarse. Revisa la configuración de Azure Translator y toca Español otra vez."
 };
 
 function t(text) {
@@ -1531,11 +1533,17 @@ function restoreEnglishData() {
 
 async function setLanguage(language) {
   state.language = language;
+  state.translationError = "";
   save("bca-language", language);
   document.documentElement.lang = language === "es" ? "es" : "en";
   state.translating = true;
   render();
-  await localizeData(language);
+  try {
+    await localizeData(language);
+  } catch (error) {
+    state.translationError = error.message || "Translation failed";
+    restoreEnglishData();
+  }
   state.translating = false;
   render();
 }
@@ -1543,21 +1551,32 @@ async function setLanguage(language) {
 async function localizeData(language) {
   if (language !== "es") {
     restoreEnglishData();
+    state.translationError = "";
     return;
   }
   const localized = await translateDataSet(ORIGINAL_DATA, language);
+  assertSpanishDataLoaded(localized);
   replaceArrayContents(topics, localized.topics);
   replaceArrayContents(fullQuestionBank, localized.fullQuestionBank);
   replaceArrayContents(flashCardBank, localized.flashCardBank);
+  state.translationError = "";
 }
 
 async function translateDataSet(data, language) {
   const localized = deepClone(data);
   const strings = [];
   collectTranslatableStrings(localized, strings);
-  const translations = await getTranslations([...new Set(strings)], language);
+  const translations = await getTranslations([...new Set(strings)], language, { throwOnFailure: true });
   translateStringsInPlace(localized, translations);
   return localized;
+}
+
+function assertSpanishDataLoaded(localized) {
+  const networking = localized.topics.find((topic) => topic.id === "networking");
+  const lesson = networking?.lessons?.find((item) => item.title === "Endpoints And DNS");
+  if (lesson || networking?.title === "Networking") {
+    throw new Error("Spanish study content was not translated.");
+  }
 }
 
 function collectTranslatableStrings(value, bucket, key = "") {
@@ -1667,7 +1686,7 @@ async function applyLanguage() {
   });
 }
 
-async function getTranslations(texts, language) {
+async function getTranslations(texts, language, options = {}) {
   const cache = load("bca-translation-cache-v2", {});
   const languageCache = cache[language] || {};
   const output = {};
@@ -1696,7 +1715,8 @@ async function getTranslations(texts, language) {
     }
     cache[language] = languageCache;
     save("bca-translation-cache-v2", cache);
-  } catch {
+  } catch (error) {
+    if (options.throwOnFailure) throw error;
     missing.forEach((text) => {
       if (language === "es" && uiTranslations[text]) output[text] = uiTranslations[text];
     });
@@ -1736,6 +1756,7 @@ function render() {
   if (state.screen === "flashSubjects") app.innerHTML = renderFlashSubjectPicker();
   if (state.screen === "search") app.innerHTML = renderSearch();
   wire();
+  applyVisibleSpanishFallback();
 
   setTimeout(() => {
     document.querySelectorAll(".stat-ring").forEach((ring) => {
@@ -1779,6 +1800,7 @@ function renderHome() {
     <main class="screen">
       ${topbar("Blue Cloud Academy")}
       ${renderLanguageToggle()}
+      ${renderTranslationWarning()}
       <section class="hero-stat" aria-label="Study stats">
   <div class="stat-card">
     <div class="stat-ring" style="--value:${Math.round((p.doneLessons / p.totalLessons) * 100)}%;">
@@ -1906,6 +1928,11 @@ function examReadiness() {
   return { score: 0, level: "build", label: t("Start Practicing"), note: t("Run a quick drill or 45-question final to calibrate.") };
 }
 
+function applyVisibleSpanishFallback() {
+  if (state.language !== "es" || state.translating) return;
+  applyLanguage();
+}
+
 function renderLanguageLoading() {
   return `
     <main class="screen">
@@ -1916,6 +1943,15 @@ function renderLanguageLoading() {
         <p>${escapeHtml(t("Updating language..."))}</p>
       </section>
     </main>
+  `;
+}
+
+function renderTranslationWarning() {
+  if (state.language !== "es" || !state.translationError) return "";
+  return `
+    <section class="translation-warning">
+      <p>${escapeHtml(t("Spanish translation could not load. Check Azure Translator settings, then tap Español again."))}</p>
+    </section>
   `;
 }
 
