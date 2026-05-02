@@ -1,4 +1,4 @@
-const CACHE_NAME = "az900-coach-v3";
+const CACHE_NAME = "blue-cloud-academy-v12";
 const APP_ASSETS = [
   "./",
   "./index.html",

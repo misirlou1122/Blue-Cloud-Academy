@@ -1,6 +1,6 @@
 {
-  "name": "Azure BlueAcademy",
-  "short_name": "BlueAcademy",
+  "name": "Blue Cloud Academy",
+  "short_name": "BlueCloud",
   "description": "Swipeable Azure Fundamentals study app for AZ-900 practice.",
   "start_url": "./index.html",
   "display": "standalone",
