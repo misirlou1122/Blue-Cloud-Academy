@@ -2,6 +2,7 @@
 
 let touchStartX = 0;
 let touchEndX = 0;
+let translationRun = 0;
 
 const iconPaths = {
   cloud: '<path d="M17 18H8a5 5 0 1 1 1.3-9.8A7 7 0 0 1 23 10a4 4 0 0 1-1 8h-1"/>',
@@ -1376,7 +1377,78 @@ const state = {
   answers: {},
   bookmarked: load("az900-bookmarks", {}),
   flashSaved: load("az900-saved-flashcards", {}),
-  searchQuery: ""
+  searchQuery: "",
+  language: load("bca-language", "en")
+};
+
+const uiTranslations = {
+  "English": "English",
+  "Español": "Español",
+  "lessons": "lecciones",
+  "readiness": "preparacion",
+  "best final": "mejor final",
+  "Daily Quick Drill": "Practica rapida diaria",
+  "Search": "Buscar",
+  "Flash Cards": "Tarjetas",
+  "Bookmarked Lessons": "Lecciones guardadas",
+  "Exam Readiness": "Preparacion para el examen",
+  "Focus Next": "Enfocate despues",
+  "Take a quiz or quick drill to reveal weak areas.": "Haz un quiz o practica rapida para ver tus areas debiles.",
+  "Start Practicing": "Empieza a practicar",
+  "Keep Practicing": "Sigue practicando",
+  "Almost Ready": "Casi listo",
+  "Ready": "Listo",
+  "Run a quick drill or 45-question final to calibrate.": "Haz una practica rapida o un final de 45 preguntas para calibrarte.",
+  "Use quick drills and review missed answers.": "Usa practicas rapidas y revisa las respuestas falladas.",
+  "Keep drilling missed questions and weaker areas.": "Sigue practicando preguntas falladas y areas debiles.",
+  "Recent final practice is in a strong pass range.": "Tu practica final reciente esta en un rango fuerte para aprobar.",
+  "Choose Subject": "Elegir tema",
+  "All Flash Cards": "Todas las tarjetas",
+  "Saved Flash Cards": "Tarjetas guardadas",
+  "All subjects": "Todos los temas",
+  "Saved cards": "Tarjetas guardadas",
+  "Subject": "Tema",
+  "Save": "Guardar",
+  "Saved": "Guardada",
+  "Shuffle": "Mezclar",
+  "Flip": "Voltear",
+  "Tap to reveal the answer": "Toca para revelar la respuesta",
+  "Tap to see the term": "Toca para ver el termino",
+  "Tap to see the example": "Toca para ver el ejemplo",
+  "Home tile: Study": "Seccion: Estudio",
+  "Quiz Results": "Resultados del quiz",
+  "Review Missed": "Revisar falladas",
+  "Try Again": "Intentar otra vez",
+  "Question": "Pregunta",
+  "answered": "respondidas",
+  "Check": "Revisar",
+  "Correct": "Correcto",
+  "Review": "Revisar",
+  "Reveal": "Mostrar",
+  "Prev": "Anterior",
+  "Next": "Siguiente",
+  "Done": "Listo",
+  "Quiz": "Quiz",
+  "Answer breakdown": "Desglose de respuestas",
+  "Fresh 45 Final": "Final nuevo de 45",
+  "Missed Questions": "Preguntas falladas",
+  "Search lessons and flash cards by service, term, or exam clue.": "Busca lecciones y tarjetas por servicio, termino o pista del examen.",
+  "No matches yet. Try a shorter term.": "Todavia no hay resultados. Prueba un termino mas corto.",
+  "Lesson": "Leccion",
+  "Flash Card": "Tarjeta",
+  "Cloud Concepts": "Conceptos de la nube",
+  "Cloud Benefits": "Beneficios de la nube",
+  "Service Models": "Modelos de servicio",
+  "Azure Architecture": "Arquitectura de Azure",
+  "Compute Hosting": "Hospedaje de computo",
+  "Networking": "Redes",
+  "Storage + Databases": "Almacenamiento + bases de datos",
+  "Identity + Security": "Identidad + seguridad",
+  "Cost Management": "Administracion de costos",
+  "Governance": "Gobernanza",
+  "Deployment Tools": "Herramientas de implementacion",
+  "Monitoring": "Monitoreo",
+  "Final Exam Map": "Mapa del examen final"
 };
 
 function q(topic, prompt, choices, answer, explanation) {
@@ -1434,6 +1506,87 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function isNoTranslateNode(node) {
+  const parent = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  return Boolean(parent?.closest("[data-no-translate], svg, script, style"));
+}
+
+function collectTextNodes(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.nodeValue.trim();
+      if (!text || !/[A-Za-z]/.test(text) || isNoTranslateNode(node)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  return nodes;
+}
+
+function preserveSpacing(original, translated) {
+  const leading = original.match(/^\s*/)?.[0] || "";
+  const trailing = original.match(/\s*$/)?.[0] || "";
+  return `${leading}${translated}${trailing}`;
+}
+
+async function applyLanguage() {
+  const root = document.getElementById("app");
+  if (!root) return;
+  document.documentElement.lang = state.language === "es" ? "es" : "en";
+  if (state.language !== "es") return;
+  const run = ++translationRun;
+  const nodes = collectTextNodes(root);
+  const placeholderNodes = [...root.querySelectorAll("input[placeholder]")].filter((node) => !node.closest("[data-no-translate]"));
+  const texts = [
+    ...nodes.map((node) => node.nodeValue.trim()),
+    ...placeholderNodes.map((node) => node.getAttribute("placeholder").trim())
+  ];
+  const translations = await getSpanishTranslations([...new Set(texts)]);
+  if (run !== translationRun) return;
+  nodes.forEach((node) => {
+    const original = node.nodeValue;
+    const translated = translations[original.trim()];
+    if (translated) node.nodeValue = preserveSpacing(original, translated);
+  });
+  placeholderNodes.forEach((node) => {
+    const original = node.getAttribute("placeholder").trim();
+    if (translations[original]) node.setAttribute("placeholder", translations[original]);
+  });
+}
+
+async function getSpanishTranslations(texts) {
+  const cache = load("bca-translation-cache-v1", {});
+  const output = {};
+  const missing = [];
+  texts.forEach((text) => {
+    if (!text || text.length > 900) return;
+    if (uiTranslations[text]) output[text] = uiTranslations[text];
+    else if (cache[text]) output[text] = cache[text];
+    else missing.push(text);
+  });
+  if (!missing.length) return output;
+  try {
+    const response = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts: missing })
+    });
+    if (!response.ok) throw new Error("Translation request failed");
+    const data = await response.json();
+    Object.entries(data.translations || {}).forEach(([source, translated]) => {
+      output[source] = translated;
+      cache[source] = translated;
+    });
+    save("bca-translation-cache-v1", cache);
+  } catch {
+    missing.forEach((text) => {
+      if (uiTranslations[text]) output[text] = uiTranslations[text];
+    });
+  }
+  return output;
+}
+
 function svg(name) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.cloud}</svg>`;
 }
@@ -1461,6 +1614,7 @@ function render() {
   if (state.screen === "flashSubjects") app.innerHTML = renderFlashSubjectPicker();
   if (state.screen === "search") app.innerHTML = renderSearch();
   wire();
+  applyLanguage();
 
   setTimeout(() => {
     document.querySelectorAll(".stat-ring").forEach((ring) => {
@@ -1476,14 +1630,25 @@ function render() {
 
 function topbar(title, right = "info") {
   const back = state.screen === "home" ? `<div></div>` : `<button class="icon-button" data-action="back" aria-label="Back">${svg("back")}</button>`;
+  const titleAttr = title === "Blue Cloud Academy" ? ` data-no-translate="true"` : "";
   return `
     <header class="topbar">
       ${back}
       <div>
-        <h1 class="title">${escapeHtml(title)}</h1>
+        <h1 class="title"${titleAttr}>${escapeHtml(title)}</h1>
       </div>
       <button class="icon-button ${right === "star" ? "gold" : ""}" data-action="${right}" aria-label="${right === "star" ? "Bookmark" : "Info"}">${svg(right)}</button>
     </header>
+  `;
+}
+
+function renderLanguageToggle() {
+  return `
+    <div class="language-toggle" data-no-translate="true" aria-label="Language">
+      <button class="${state.language === "en" ? "active" : ""}" data-language="en">English</button>
+      <span>|</span>
+      <button class="${state.language === "es" ? "active" : ""}" data-language="es">Español</button>
+    </div>
   `;
 }
 
@@ -1492,6 +1657,7 @@ function renderHome() {
   return `
     <main class="screen">
       ${topbar("Blue Cloud Academy")}
+      ${renderLanguageToggle()}
       <section class="hero-stat" aria-label="Study stats">
   <div class="stat-card">
     <div class="stat-ring" style="--value:${Math.round((p.doneLessons / p.totalLessons) * 100)}%;">
@@ -2152,6 +2318,14 @@ function wire() {
     });
   });
 
+  document.querySelectorAll("[data-language]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.language = button.dataset.language;
+      save("bca-language", state.language);
+      render();
+    });
+  });
+
   document.querySelectorAll("[data-search-topic]").forEach((button) => {
     button.addEventListener("click", () => {
       state.screen = "lesson";
@@ -2181,6 +2355,7 @@ function wire() {
       const results = document.querySelector(".search-results");
       if (results) results.innerHTML = renderSearchResults(state.searchQuery);
       wireSearchResults();
+      applyLanguage();
     });
   }
 

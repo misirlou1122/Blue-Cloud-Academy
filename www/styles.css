@@ -75,6 +75,41 @@ button {
   line-height: 1.1;
 }
 
+.language-toggle {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: -2px auto 14px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 234, 255, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--muted);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.language-toggle button {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.language-toggle button.active {
+  background: rgba(0, 234, 255, 0.14);
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0, 234, 255, 0.16);
+}
+
+.language-toggle span {
+  color: rgba(159, 179, 200, 0.55);
+  font-weight: 900;
+}
+
 .icon-button {
   width: 52px;
   height: 52px;
