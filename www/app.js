@@ -1358,6 +1358,14 @@ const exampleFlashCards = [
 
 flashCardBank.push(...exampleFlashCards);
 
+const ORIGINAL_DATA = {
+  topics: deepClone(topics),
+  fullQuestionBank: deepClone(fullQuestionBank),
+  flashCardBank: deepClone(flashCardBank)
+};
+
+const DATA_TRANSLATION_SKIP_KEYS = new Set(["id", "topic", "icon", "color", "kind"]);
+
 const state = {
   screen: "home",
   topicId: null,
@@ -1378,30 +1386,31 @@ const state = {
   bookmarked: load("az900-bookmarks", {}),
   flashSaved: load("az900-saved-flashcards", {}),
   searchQuery: "",
-  language: load("bca-language", "en")
+  language: load("bca-language", "en"),
+  translating: false
 };
 
 const uiTranslations = {
   "English": "English",
   "Español": "Español",
   "lessons": "lecciones",
-  "readiness": "preparacion",
+  "readiness": "preparación",
   "best final": "mejor final",
-  "Daily Quick Drill": "Practica rapida diaria",
+  "Daily Quick Drill": "Práctica rápida diaria",
   "Search": "Buscar",
   "Flash Cards": "Tarjetas",
   "Bookmarked Lessons": "Lecciones guardadas",
-  "Exam Readiness": "Preparacion para el examen",
-  "Focus Next": "Enfocate despues",
-  "Take a quiz or quick drill to reveal weak areas.": "Haz un quiz o practica rapida para ver tus areas debiles.",
+  "Exam Readiness": "Preparación para el examen",
+  "Focus Next": "Enfócate después",
+  "Take a quiz or quick drill to reveal weak areas.": "Haz un quiz o práctica rápida para ver tus áreas débiles.",
   "Start Practicing": "Empieza a practicar",
   "Keep Practicing": "Sigue practicando",
   "Almost Ready": "Casi listo",
   "Ready": "Listo",
-  "Run a quick drill or 45-question final to calibrate.": "Haz una practica rapida o un final de 45 preguntas para calibrarte.",
-  "Use quick drills and review missed answers.": "Usa practicas rapidas y revisa las respuestas falladas.",
-  "Keep drilling missed questions and weaker areas.": "Sigue practicando preguntas falladas y areas debiles.",
-  "Recent final practice is in a strong pass range.": "Tu practica final reciente esta en un rango fuerte para aprobar.",
+  "Run a quick drill or 45-question final to calibrate.": "Haz una práctica rápida o un final de 45 preguntas para calibrarte.",
+  "Use quick drills and review missed answers.": "Usa prácticas rápidas y revisa las respuestas falladas.",
+  "Keep drilling missed questions and weaker areas.": "Sigue practicando preguntas falladas y áreas débiles.",
+  "Recent final practice is in a strong pass range.": "Tu práctica final reciente está en un rango fuerte para aprobar.",
   "Choose Subject": "Elegir tema",
   "All Flash Cards": "Todas las tarjetas",
   "Saved Flash Cards": "Tarjetas guardadas",
@@ -1415,11 +1424,14 @@ const uiTranslations = {
   "Tap to reveal the answer": "Toca para revelar la respuesta",
   "Tap to see the term": "Toca para ver el termino",
   "Tap to see the example": "Toca para ver el ejemplo",
-  "Home tile: Study": "Seccion: Estudio",
+  "Home tile: Study": "Sección: Estudio",
+  "Home tile": "Sección",
+  "Study": "Estudio",
   "Quiz Results": "Resultados del quiz",
   "Review Missed": "Revisar falladas",
   "Try Again": "Intentar otra vez",
   "Question": "Pregunta",
+  "of": "de",
   "answered": "respondidas",
   "Check": "Revisar",
   "Correct": "Correcto",
@@ -1432,10 +1444,14 @@ const uiTranslations = {
   "Answer breakdown": "Desglose de respuestas",
   "Fresh 45 Final": "Final nuevo de 45",
   "Missed Questions": "Preguntas falladas",
-  "Search lessons and flash cards by service, term, or exam clue.": "Busca lecciones y tarjetas por servicio, termino o pista del examen.",
-  "No matches yet. Try a shorter term.": "Todavia no hay resultados. Prueba un termino mas corto.",
-  "Lesson": "Leccion",
+  "Search lessons and flash cards by service, term, or exam clue.": "Busca lecciones y tarjetas por servicio, término o pista del examen.",
+  "Search SLA, RBAC, Bastion...": "Busca SLA, RBAC, Bastion...",
+  "No matches yet. Try a shorter term.": "Todavía no hay resultados. Prueba un término más corto.",
+  "Lesson": "Lección",
   "Flash Card": "Tarjeta",
+  "correct": "correctas",
+  "Strong pass pace. Review missed questions once, then run another 45-question set.": "Vas a ritmo de aprobación. Revisa las preguntas falladas y luego haz otro set de 45 preguntas.",
+  "Keep going. Tap review and focus on the explanations for missed questions.": "Sigue adelante. Toca revisar y enfócate en las explicaciones de las preguntas falladas.",
   "Cloud Concepts": "Conceptos de la nube",
   "Cloud Benefits": "Beneficios de la nube",
   "Service Models": "Modelos de servicio",
@@ -1448,8 +1464,14 @@ const uiTranslations = {
   "Governance": "Gobernanza",
   "Deployment Tools": "Herramientas de implementacion",
   "Monitoring": "Monitoreo",
-  "Final Exam Map": "Mapa del examen final"
+  "Final Exam Map": "Mapa del examen final",
+  "Start 45-question final practice": "Comenzar práctica final de 45 preguntas",
+  "Updating language...": "Actualizando idioma..."
 };
+
+function t(text) {
+  return state.language === "es" ? (uiTranslations[text] || text) : text;
+}
 
 function q(topic, prompt, choices, answer, explanation) {
   return { id: `${topic}-${Math.random().toString(36).slice(2)}`, topic, prompt, choices, answer, explanation };
@@ -1491,6 +1513,96 @@ function load(key, fallback) {
 
 function save(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function replaceArrayContents(target, source) {
+  target.splice(0, target.length, ...deepClone(source));
+}
+
+function restoreEnglishData() {
+  replaceArrayContents(topics, ORIGINAL_DATA.topics);
+  replaceArrayContents(fullQuestionBank, ORIGINAL_DATA.fullQuestionBank);
+  replaceArrayContents(flashCardBank, ORIGINAL_DATA.flashCardBank);
+}
+
+async function setLanguage(language) {
+  state.language = language;
+  save("bca-language", language);
+  document.documentElement.lang = language === "es" ? "es" : "en";
+  state.translating = true;
+  render();
+  await localizeData(language);
+  state.translating = false;
+  render();
+}
+
+async function localizeData(language) {
+  if (language !== "es") {
+    restoreEnglishData();
+    return;
+  }
+  const localized = await translateDataSet(ORIGINAL_DATA, language);
+  replaceArrayContents(topics, localized.topics);
+  replaceArrayContents(fullQuestionBank, localized.fullQuestionBank);
+  replaceArrayContents(flashCardBank, localized.flashCardBank);
+}
+
+async function translateDataSet(data, language) {
+  const localized = deepClone(data);
+  const strings = [];
+  collectTranslatableStrings(localized, strings);
+  const translations = await getTranslations([...new Set(strings)], language);
+  translateStringsInPlace(localized, translations);
+  return localized;
+}
+
+function collectTranslatableStrings(value, bucket, key = "") {
+  if (typeof value === "string") {
+    if (shouldTranslateDataString(value, key)) bucket.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectTranslatableStrings(item, bucket, key));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  Object.entries(value).forEach(([childKey, childValue]) => {
+    collectTranslatableStrings(childValue, bucket, childKey);
+  });
+}
+
+function translateStringsInPlace(value, translations, key = "") {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      if (typeof item === "string") {
+        if (shouldTranslateDataString(item, key) && translations[item]) value[index] = translations[item];
+        return;
+      }
+      translateStringsInPlace(item, translations, key);
+    });
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  Object.entries(value).forEach(([childKey, childValue]) => {
+    if (typeof childValue === "string") {
+      if (shouldTranslateDataString(childValue, childKey) && translations[childValue]) {
+        value[childKey] = translations[childValue];
+      }
+      return;
+    }
+    translateStringsInPlace(childValue, translations, childKey);
+  });
+}
+
+function shouldTranslateDataString(value, key = "") {
+  const text = value.trim();
+  if (!text || DATA_TRANSLATION_SKIP_KEYS.has(key)) return false;
+  if (!/[A-Za-z]/.test(text)) return false;
+  return true;
 }
 
 function $(selector) {
@@ -1542,7 +1654,7 @@ async function applyLanguage() {
     ...nodes.map((node) => node.nodeValue.trim()),
     ...placeholderNodes.map((node) => node.getAttribute("placeholder").trim())
   ];
-  const translations = await getSpanishTranslations([...new Set(texts)]);
+  const translations = await getTranslations([...new Set(texts)], "es");
   if (run !== translationRun) return;
   nodes.forEach((node) => {
     const original = node.nodeValue;
@@ -1555,33 +1667,38 @@ async function applyLanguage() {
   });
 }
 
-async function getSpanishTranslations(texts) {
-  const cache = load("bca-translation-cache-v1", {});
+async function getTranslations(texts, language) {
+  const cache = load("bca-translation-cache-v2", {});
+  const languageCache = cache[language] || {};
   const output = {};
   const missing = [];
   texts.forEach((text) => {
     if (!text || text.length > 900) return;
-    if (uiTranslations[text]) output[text] = uiTranslations[text];
-    else if (cache[text]) output[text] = cache[text];
+    if (language === "es" && uiTranslations[text]) output[text] = uiTranslations[text];
+    else if (languageCache[text]) output[text] = languageCache[text];
     else missing.push(text);
   });
   if (!missing.length) return output;
   try {
-    const response = await fetch("/api/translate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texts: missing })
-    });
-    if (!response.ok) throw new Error("Translation request failed");
-    const data = await response.json();
-    Object.entries(data.translations || {}).forEach(([source, translated]) => {
-      output[source] = translated;
-      cache[source] = translated;
-    });
-    save("bca-translation-cache-v1", cache);
+    for (let index = 0; index < missing.length; index += 80) {
+      const batch = missing.slice(index, index + 80);
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts: batch, to: language })
+      });
+      if (!response.ok) throw new Error("Translation request failed");
+      const data = await response.json();
+      Object.entries(data.translations || {}).forEach(([source, translated]) => {
+        output[source] = translated;
+        languageCache[source] = translated;
+      });
+    }
+    cache[language] = languageCache;
+    save("bca-translation-cache-v2", cache);
   } catch {
     missing.forEach((text) => {
-      if (uiTranslations[text]) output[text] = uiTranslations[text];
+      if (language === "es" && uiTranslations[text]) output[text] = uiTranslations[text];
     });
   }
   return output;
@@ -1606,6 +1723,11 @@ function progress() {
 
 function render() {
   const app = document.getElementById("app");
+  if (state.translating) {
+    app.innerHTML = renderLanguageLoading();
+    wire();
+    return;
+  }
   if (state.screen === "home") app.innerHTML = renderHome();
   if (state.screen === "topic") app.innerHTML = renderTopic();
   if (state.screen === "lesson") app.innerHTML = renderLesson();
@@ -1614,7 +1736,6 @@ function render() {
   if (state.screen === "flashSubjects") app.innerHTML = renderFlashSubjectPicker();
   if (state.screen === "search") app.innerHTML = renderSearch();
   wire();
-  applyLanguage();
 
   setTimeout(() => {
     document.querySelectorAll(".stat-ring").forEach((ring) => {
@@ -1663,21 +1784,21 @@ function renderHome() {
     <div class="stat-ring" style="--value:${Math.round((p.doneLessons / p.totalLessons) * 100)}%;">
       <div class="stat-ring-inner"><strong>${p.doneLessons}/${p.totalLessons}</strong></div>
     </div>
-    <span>lessons</span>
+    <span>${escapeHtml(t("lessons"))}</span>
   </div>
 
   <div class="stat-card">
     <div class="stat-ring readiness-${p.readiness.level}" style="--value:${p.readiness.score}%;">
       <div class="stat-ring-inner"><strong>${p.readiness.score}%</strong></div>
     </div>
-    <span>readiness</span>
+    <span>${escapeHtml(t("readiness"))}</span>
   </div>
 
   <div class="stat-card">
     <div class="stat-ring" style="--value:${p.bestScore}%;">
       <div class="stat-ring-inner"><strong>${p.bestScore}%</strong></div>
     </div>
-    <span>best final</span>
+    <span>${escapeHtml(t("best final"))}</span>
   </div>
 </section>
       ${renderStudyDashboard(p)}
@@ -1685,15 +1806,15 @@ function renderHome() {
       <section class="topic-grid">
         <button class="topic-card feature-card" data-action="startDailyDrill" aria-label="Daily Quick Drill">
           <span class="topic-icon">${svg("exam")}</span>
-          <span>Daily Quick Drill</span>
+          <span>${escapeHtml(t("Daily Quick Drill"))}</span>
         </button>
         <button class="topic-card feature-card" data-action="openSearch" aria-label="Search Study Guide">
           <span class="topic-icon">${svg("tool")}</span>
-          <span>Search</span>
+          <span>${escapeHtml(t("Search"))}</span>
         </button>
         <button class="topic-card feature-card" data-action="startFlashCards" aria-label="Flash Cards">
           <span class="topic-icon">${svg("cards")}</span>
-          <span>Flash Cards</span>
+          <span>${escapeHtml(t("Flash Cards"))}</span>
         </button>
         ${topics.map((topic) => `
           <button class="topic-card" data-topic="${topic.id}" aria-label="${escapeHtml(topic.title)}">
@@ -1713,7 +1834,7 @@ function renderStudyDashboard(p) {
     <section class="study-dashboard" aria-label="Study dashboard">
       <div class="readiness-card">
         <div>
-          <span>Exam Readiness</span>
+          <span>${escapeHtml(t("Exam Readiness"))}</span>
           <strong>${escapeHtml(readiness.label)}</strong>
           <small>${escapeHtml(readiness.note)}</small>
         </div>
@@ -1721,7 +1842,7 @@ function renderStudyDashboard(p) {
       </div>
       <div class="weak-panel">
         <div class="section-heading">
-          <h2>Focus Next</h2>
+          <h2>${escapeHtml(t("Focus Next"))}</h2>
           <span>${weak.length ? weak.length : "0"}</span>
         </div>
         ${weak.length ? weak.map((item) => `
@@ -1729,7 +1850,7 @@ function renderStudyDashboard(p) {
             <span>${escapeHtml(item.topic.title)}</span>
             <strong>${item.score}%</strong>
           </button>
-        `).join("") : `<p class="empty-note">Take a quiz or quick drill to reveal weak areas.</p>`}
+        `).join("") : `<p class="empty-note">${escapeHtml(t("Take a quiz or quick drill to reveal weak areas."))}</p>`}
       </div>
     </section>
   `;
@@ -1741,7 +1862,7 @@ function renderHomeBookmarks() {
   return `
     <section class="bookmark-panel" aria-label="Bookmarked lessons">
       <div class="section-heading">
-        <h2>Bookmarked Lessons</h2>
+        <h2>${escapeHtml(t("Bookmarked Lessons"))}</h2>
         <span>${bookmarks.length}</span>
       </div>
       <div class="bookmark-list">
@@ -1779,10 +1900,23 @@ function examReadiness() {
   const score = recent.length
     ? Math.round(recent.reduce((sum, item) => sum + item.score, 0) / recent.length)
     : load("az900-best-final", 0);
-  if (score >= 85) return { score, level: "ready", label: "Ready", note: "Recent final practice is in a strong pass range." };
-  if (score >= 70) return { score, level: "close", label: "Almost Ready", note: "Keep drilling missed questions and weaker areas." };
-  if (score > 0) return { score, level: "build", label: "Keep Practicing", note: "Use quick drills and review missed answers." };
-  return { score: 0, level: "build", label: "Start Practicing", note: "Run a quick drill or 45-question final to calibrate." };
+  if (score >= 85) return { score, level: "ready", label: t("Ready"), note: t("Recent final practice is in a strong pass range.") };
+  if (score >= 70) return { score, level: "close", label: t("Almost Ready"), note: t("Keep drilling missed questions and weaker areas.") };
+  if (score > 0) return { score, level: "build", label: t("Keep Practicing"), note: t("Use quick drills and review missed answers.") };
+  return { score: 0, level: "build", label: t("Start Practicing"), note: t("Run a quick drill or 45-question final to calibrate.") };
+}
+
+function renderLanguageLoading() {
+  return `
+    <main class="screen">
+      ${topbar("Blue Cloud Academy")}
+      ${renderLanguageToggle()}
+      <section class="score-card language-loading">
+        <div class="score">...</div>
+        <p>${escapeHtml(t("Updating language..."))}</p>
+      </section>
+    </main>
+  `;
 }
 
 function weakAreas() {
@@ -1815,7 +1949,7 @@ function renderTopic() {
         ${rows}
         <button class="lesson-row" data-action="topicQuiz">
           <span class="mini-icon">Q</span>
-          <strong>${topic.id === "exam" ? "Start 45-question final practice" : `Quiz: ${escapeHtml(topic.title)}`}</strong>
+          <strong>${topic.id === "exam" ? escapeHtml(t("Start 45-question final practice")) : `${escapeHtml(t("Quiz"))}: ${escapeHtml(topic.title)}`}</strong>
           <span class="chevron">&rsaquo;</span>
         </button>
       </section>
@@ -1841,8 +1975,8 @@ function renderLesson() {
       ${dots(topic.lessons.length, state.lessonIndex)}
       <nav class="bottom-nav">
         <button class="icon-button" data-action="prevLesson" aria-label="Previous">${svg("back")}</button>
-        <button class="pill-button secondary" data-action="markDone">Done</button>
-        <button class="pill-button" data-action="topicQuiz">Quiz</button>
+        <button class="pill-button secondary" data-action="markDone">${escapeHtml(t("Done"))}</button>
+        <button class="pill-button" data-action="topicQuiz">${escapeHtml(t("Quiz"))}</button>
         <button class="icon-button" data-action="nextLesson" aria-label="Next">${svg("next")}</button>
       </nav>
     </main>
@@ -1879,8 +2013,8 @@ function renderQuiz() {
       ${topbar(quizTitle())}
       <section class="quiz-panel">
         <div class="quiz-status">
-          <span>Question ${state.quizIndex + 1} of ${questions.length}</span>
-          <span>${answeredCount} answered</span>
+          <span>${escapeHtml(t("Question"))} ${state.quizIndex + 1} ${escapeHtml(t("of"))} ${questions.length}</span>
+          <span>${answeredCount} ${escapeHtml(t("answered"))}</span>
         </div>
         <div class="quiz-meter" aria-hidden="true"><span style="width:${percent}%"></span></div>
         <p class="question">${escapeHtml(current.prompt)}</p>
@@ -1903,10 +2037,10 @@ function renderQuiz() {
         ` : ""}
       </section>
       <nav class="quiz-actions">
-        <button class="quiz-nav-button" data-action="prevQuestion">${svg("back")}<span>Prev</span></button>
-        <button class="quiz-primary ${checked ? (answerRecord.correct ? "correct" : "wrong") : ""}" data-action="check">${checked ? (answerRecord.correct ? "Correct" : "Review") : "Check"}</button>
-        <button class="quiz-ghost" data-action="showAnswer">Reveal</button>
-        <button class="quiz-nav-button" data-action="nextQuestion"><span>Next</span>${svg("next")}</button>
+        <button class="quiz-nav-button" data-action="prevQuestion">${svg("back")}<span>${escapeHtml(t("Prev"))}</span></button>
+        <button class="quiz-primary ${checked ? (answerRecord.correct ? "correct" : "wrong") : ""}" data-action="check">${escapeHtml(checked ? (answerRecord.correct ? t("Correct") : t("Review")) : t("Check"))}</button>
+        <button class="quiz-ghost" data-action="showAnswer">${escapeHtml(t("Reveal"))}</button>
+        <button class="quiz-nav-button" data-action="nextQuestion"><span>${escapeHtml(t("Next"))}</span>${svg("next")}</button>
       </nav>
     </main>
   `;
@@ -1921,26 +2055,26 @@ function renderFlashCards() {
   const saved = Boolean(state.flashSaved[card.id]);
   return `
     <main class="screen flash-screen" data-swipe="flashcards">
-      ${topbar("Flash Cards")}
+      ${topbar(t("Flash Cards"))}
       <div class="flash-meta">
         <span>${state.flashIndex + 1} / ${cards.length}</span>
         <span>${escapeHtml(filterTitle)}</span>
       </div>
       <div class="flash-tools">
-        <button class="flash-tool" data-action="chooseFlashSubject">Subject</button>
-        <button class="flash-tool ${saved ? "saved" : ""}" data-action="saveFlashCard">${saved ? "Saved" : "Save"}</button>
-        <button class="flash-tool" data-action="openFlashTopic">Home tile: ${escapeHtml(topic?.title || "Study")}</button>
+        <button class="flash-tool" data-action="chooseFlashSubject">${escapeHtml(t("Subject"))}</button>
+        <button class="flash-tool ${saved ? "saved" : ""}" data-action="saveFlashCard">${escapeHtml(saved ? t("Saved") : t("Save"))}</button>
+        <button class="flash-tool" data-action="openFlashTopic">${escapeHtml(t("Home tile"))}: ${escapeHtml(topic?.title || t("Study"))}</button>
       </div>
       <button class="flash-card ${state.flashFlipped ? "flipped" : ""} ${isExample ? "example-card" : ""}" data-action="flipFlashCard" aria-label="Flip flash card">
         ${isExample ? "" : `<span class="flash-label">${state.flashFlipped ? "Answer" : "Term"}</span>`}
         <strong>${escapeHtml(state.flashFlipped ? card.definition : card.term)}</strong>
-        <small>${state.flashFlipped ? (isExample ? "Tap to see the example" : "Tap to see the term") : "Tap to reveal the answer"}</small>
+        <small>${escapeHtml(state.flashFlipped ? (isExample ? t("Tap to see the example") : t("Tap to see the term")) : t("Tap to reveal the answer"))}</small>
       </button>
       ${dots(cards.length, state.flashIndex)}
       <nav class="bottom-nav">
         <button class="icon-button" data-action="prevFlashCard" aria-label="Previous">${svg("back")}</button>
-        <button class="pill-button secondary" data-action="shuffleFlashCards">Shuffle</button>
-        <button class="pill-button" data-action="flipFlashCard">Flip</button>
+        <button class="pill-button secondary" data-action="shuffleFlashCards">${escapeHtml(t("Shuffle"))}</button>
+        <button class="pill-button" data-action="flipFlashCard">${escapeHtml(t("Flip"))}</button>
         <button class="icon-button" data-action="nextFlashCard" aria-label="Next">${svg("next")}</button>
       </nav>
     </main>
@@ -1957,7 +2091,7 @@ function renderFlashSubjectPicker() {
   `).join("");
   return `
     <main class="screen topic-screen">
-      ${topbar("Choose Subject")}
+      ${topbar(t("Choose Subject"))}
       <section class="list">
         ${subjectRows}
       </section>
@@ -1968,9 +2102,9 @@ function renderFlashSubjectPicker() {
 function renderSearch() {
   return `
     <main class="screen topic-screen">
-      ${topbar("Search")}
+      ${topbar(t("Search"))}
       <section class="search-panel">
-        <input id="searchBox" class="search-input" type="search" value="${escapeHtml(state.searchQuery)}" placeholder="Search SLA, RBAC, Bastion..." autocomplete="off" />
+        <input id="searchBox" class="search-input" type="search" value="${escapeHtml(state.searchQuery)}" placeholder="${escapeHtml(t("Search SLA, RBAC, Bastion..."))}" autocomplete="off" />
         <div class="search-results">
           ${renderSearchResults(state.searchQuery)}
         </div>
@@ -1981,13 +2115,13 @@ function renderSearch() {
 
 function renderSearchResults(query) {
   const results = searchItems(query);
-  if (!query.trim()) return `<p class="empty-note">Search lessons and flash cards by service, term, or exam clue.</p>`;
-  if (!results.length) return `<p class="empty-note">No matches yet. Try a shorter term.</p>`;
+  if (!query.trim()) return `<p class="empty-note">${escapeHtml(t("Search lessons and flash cards by service, term, or exam clue."))}</p>`;
+  if (!results.length) return `<p class="empty-note">${escapeHtml(t("No matches yet. Try a shorter term."))}</p>`;
   return results.map((item) => {
     if (item.kind === "lesson") {
       return `
         <button class="search-row" data-search-topic="${item.topic.id}" data-search-lesson="${item.lessonIndex}">
-          <span>Lesson</span>
+          <span>${escapeHtml(t("Lesson"))}</span>
           <strong>${escapeHtml(item.lesson.title)}</strong>
           <small>${escapeHtml(item.topic.title)}</small>
         </button>
@@ -1995,9 +2129,9 @@ function renderSearchResults(query) {
     }
     return `
       <button class="search-row" data-search-card="${item.card.id}">
-        <span>Flash Card</span>
+        <span>${escapeHtml(t("Flash Card"))}</span>
         <strong>${escapeHtml(item.card.term)}</strong>
-        <small>${escapeHtml(topicById(item.card.topic)?.title || "Study")}</small>
+        <small>${escapeHtml(topicById(item.card.topic)?.title || t("Study"))}</small>
       </button>
     `;
   }).join("");
@@ -2017,33 +2151,33 @@ function renderResults(questions) {
   }
   return `
     <main class="screen">
-      ${topbar("Quiz Results")}
+      ${topbar(t("Quiz Results"))}
       <section class="score-card">
-        <p>${correct} of ${questions.length} correct</p>
+        <p>${correct} ${escapeHtml(t("of"))} ${questions.length} ${escapeHtml(t("correct"))}</p>
         <div class="score">${score}%</div>
-        <p>${score >= 80 ? "Strong pass pace. Review missed questions once, then run another 45-question set." : "Keep going. Tap review and focus on the explanations for missed questions."}</p>
-        ${missed.length ? `<button class="pill-button" data-action="reviewMissed">Review Missed (${missed.length})</button>` : ""}
-        <button class="pill-button secondary" data-action="restartQuiz">Try Again</button>
+        <p>${escapeHtml(score >= 80 ? t("Strong pass pace. Review missed questions once, then run another 45-question set.") : t("Keep going. Tap review and focus on the explanations for missed questions."))}</p>
+        ${missed.length ? `<button class="pill-button" data-action="reviewMissed">${escapeHtml(t("Review Missed"))} (${missed.length})</button>` : ""}
+        <button class="pill-button secondary" data-action="restartQuiz">${escapeHtml(t("Try Again"))}</button>
       </section>
     </main>
   `;
 }
 
 function quizTitle() {
-  if (state.quizMode === "final") return "Fresh 45 Final";
-  if (state.quizMode === "daily") return "Daily Quick Drill";
-  if (state.quizMode === "review") return "Missed Questions";
-  return `${topicById(state.topicId)?.title || "Study"} Quiz`;
+  if (state.quizMode === "final") return t("Fresh 45 Final");
+  if (state.quizMode === "daily") return t("Daily Quick Drill");
+  if (state.quizMode === "review") return t("Missed Questions");
+  return `${topicById(state.topicId)?.title || t("Study")} ${t("Quiz")}`;
 }
 
 function renderChoiceBreakdown(question) {
   return `
     <div class="choice-breakdown">
-      <strong>Answer breakdown</strong>
+      <strong>${escapeHtml(t("Answer breakdown"))}</strong>
       ${question.choices.map((choice, index) => `
         <p class="${index === question.answer ? "right" : ""}">
           <span>${String.fromCharCode(65 + index)}.</span>
-          ${escapeHtml(index === question.answer ? `Correct: ${question.explanation}` : whyChoiceIsWrong(choice, question))}
+          ${escapeHtml(index === question.answer ? `${t("Correct")}: ${question.explanation}` : whyChoiceIsWrong(choice, question))}
         </p>
       `).join("")}
     </div>
@@ -2072,6 +2206,11 @@ function recordQuizResult(questions, correct) {
 
 function whyChoiceIsWrong(choice, question) {
   const hint = serviceHint(choice);
+  if (state.language === "es") {
+    if (hint) return `${choice} no es la mejor respuesta aquí.`;
+    if (isTrueFalseQuestion(question)) return `${choice} no coincide con la afirmación. ${question.explanation}`;
+    return `${choice} no coincide con el requisito principal de esta pregunta.`;
+  }
   if (hint) return `${choice} is not the best match here. ${hint}`;
   if (isTrueFalseQuestion(question)) return `${choice} does not match the statement. ${question.explanation}`;
   return `${choice} does not match the main requirement in this question.`;
@@ -2129,7 +2268,7 @@ function startFlashCards(topicId = "all") {
 function flashSubjects() {
   const subjects = [{
     id: "all",
-    title: "All Flash Cards",
+    title: t("All Flash Cards"),
     icon: "cards",
     count: flashCardBank.length
   }];
@@ -2137,7 +2276,7 @@ function flashSubjects() {
   if (savedCount) {
     subjects.push({
       id: "saved",
-      title: "Saved Flash Cards",
+      title: t("Saved Flash Cards"),
       icon: "star",
       count: savedCount
     });
@@ -2152,9 +2291,9 @@ function flashSubjects() {
 }
 
 function flashSubjectTitle(topicId) {
-  if (topicId === "all") return "All subjects";
-  if (topicId === "saved") return "Saved cards";
-  return topicById(topicId)?.title || "Study";
+  if (topicId === "all") return t("All subjects");
+  if (topicId === "saved") return t("Saved cards");
+  return topicById(topicId)?.title || t("Study");
 }
 
 function searchItems(query) {
@@ -2319,10 +2458,8 @@ function wire() {
   });
 
   document.querySelectorAll("[data-language]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.language = button.dataset.language;
-      save("bca-language", state.language);
-      render();
+    button.addEventListener("click", async () => {
+      await setLanguage(button.dataset.language);
     });
   });
 
@@ -2355,7 +2492,6 @@ function wire() {
       const results = document.querySelector(".search-results");
       if (results) results.innerHTML = renderSearchResults(state.searchQuery);
       wireSearchResults();
-      applyLanguage();
     });
   }
 
@@ -2565,4 +2701,10 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js"));
 }
 
-render();
+async function initializeApp() {
+  document.documentElement.lang = state.language === "es" ? "es" : "en";
+  await localizeData(state.language);
+  render();
+}
+
+initializeApp();
