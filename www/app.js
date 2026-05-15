@@ -2018,7 +2018,7 @@ function renderLesson() {
       <nav class="bottom-nav">
         <button class="icon-button" data-action="prevLesson" aria-label="Previous">${svg("back")}</button>
         <button class="pill-button secondary" data-action="markDone">${escapeHtml(t("Done"))}</button>
-        <button class="pill-button" data-action="topicQuiz">${escapeHtml(t("Quiz"))}</button>
+        <button class="pill-button" data-action="topicQuiz" data-quiz-source-topic="${escapeHtml(topic.id)}" data-quiz-source-lesson="${state.lessonIndex}">${escapeHtml(t("Quiz"))}</button>
         <button class="icon-button" data-action="nextLesson" aria-label="Next">${svg("next")}</button>
       </nav>
     </main>
@@ -2250,8 +2250,13 @@ function recordQuizResult(questions, correct) {
 }
 
 function resultNextLessonTarget() {
-  if (state.quizMode !== "topic" || state.quizSourceLessonIndex === null) return null;
-  return nextLessonTarget(state.quizSourceTopic || state.topicId, state.quizSourceLessonIndex);
+  const sourceTopic = state.quizSourceTopic || state.topicId;
+  if (!sourceTopic || sourceTopic === "final" || sourceTopic === "daily") return null;
+  if (!["topic", "review"].includes(state.quizMode)) return null;
+  if (typeof state.quizSourceLessonIndex === "number") {
+    return nextLessonTarget(sourceTopic, state.quizSourceLessonIndex);
+  }
+  return firstOpenLessonTarget(sourceTopic);
 }
 
 function nextLessonTarget(topicId, lessonIndex) {
@@ -2266,6 +2271,15 @@ function nextLessonTarget(topicId, lessonIndex) {
     }
   }
   return null;
+}
+
+function firstOpenLessonTarget(topicId) {
+  const topic = topicById(topicId);
+  if (!topic?.lessons?.length) return null;
+  const complete = load("az900-complete", {});
+  const openIndex = topic.lessons.findIndex((_, index) => !complete[`${topicId}:${index}`]);
+  if (openIndex >= 0) return { topicId, lessonIndex: openIndex };
+  return nextLessonTarget(topicId, topic.lessons.length - 1) || { topicId, lessonIndex: 0 };
 }
 
 function whyChoiceIsWrong(choice, question) {
@@ -2314,6 +2328,7 @@ function startReviewMissed() {
   startQuiz("review", {
     mode: "review",
     sourceTopic: state.quizSourceTopic || state.topicId,
+    sourceLessonIndex: state.quizSourceLessonIndex,
     questions: missed
   });
 }
@@ -2561,7 +2576,7 @@ function wire() {
   }
 
   document.querySelectorAll("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => act(button.dataset.action));
+    button.addEventListener("click", () => act(button.dataset.action, button.dataset));
   });
 
   document.querySelectorAll("[data-swipe]").forEach(addSwipe);
@@ -2594,7 +2609,7 @@ function currentQuestion() {
   return state.activeQuestions[state.quizIndex];
 }
 
-function act(action) {
+function act(action, dataset = {}) {
   if (action === "back") return back();
   if (action === "info") return alert("Swipe left or right on lesson and quiz screens. This app stores progress only on this device.");
   if (action === "star") return toggleBookmark();
@@ -2615,8 +2630,12 @@ function act(action) {
   if (action === "nextFlashCard") return moveFlashCard(1);
   if (action === "topicQuiz") {
     const quizTopic = state.topicId === "exam" ? "final" : state.topicId;
-    const options = state.screen === "lesson"
-      ? { sourceTopic: state.topicId, sourceLessonIndex: state.lessonIndex }
+    const sourceLessonIndex = dataset.quizSourceLesson !== undefined ? Number(dataset.quizSourceLesson) : state.lessonIndex;
+    const options = dataset.quizSourceTopic || state.screen === "lesson"
+      ? {
+          sourceTopic: dataset.quizSourceTopic || state.topicId,
+          sourceLessonIndex
+        }
       : {};
     return startQuiz(quizTopic, options);
   }
@@ -2687,7 +2706,10 @@ function moveLesson(delta) {
   if (next < 0) {
     state.screen = "topic";
   } else if (next >= topic.lessons.length) {
-    startQuiz(state.topicId);
+    startQuiz(state.topicId, {
+      sourceTopic: state.topicId,
+      sourceLessonIndex: state.lessonIndex
+    });
     return;
   } else {
     state.lessonIndex = next;
