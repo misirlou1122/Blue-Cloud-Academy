@@ -1378,6 +1378,7 @@ const state = {
   activeQuestions: [],
   quizMode: "topic",
   quizSourceTopic: null,
+  quizSourceLessonIndex: null,
   resultSaved: false,
   flashCards: [],
   flashIndex: 0,
@@ -1434,6 +1435,8 @@ const uiTranslations = {
   "Study": "Estudio",
   "Quiz Results": "Resultados del quiz",
   "Review Missed": "Revisar falladas",
+  "Next Lesson": "Siguiente lección",
+  "Home": "Inicio",
   "Try Again": "Intentar otra vez",
   "Question": "Pregunta",
   "of": "de",
@@ -2180,6 +2183,7 @@ function renderResults(questions) {
   const correct = questions.filter((item) => state.answers[item.id]?.correct).length;
   const score = Math.round((correct / questions.length) * 100);
   const missed = questions.filter((item) => state.answers[item.id] && !state.answers[item.id].correct);
+  const nextLesson = resultNextLessonTarget();
   if (!state.resultSaved) {
     recordQuizResult(questions, correct);
     state.resultSaved = true;
@@ -2196,6 +2200,8 @@ function renderResults(questions) {
         <div class="score">${score}%</div>
         <p>${escapeHtml(score >= 80 ? t("Strong pass pace. Review missed questions once, then run another 45-question set.") : t("Keep going. Tap review and focus on the explanations for missed questions."))}</p>
         ${missed.length ? `<button class="pill-button" data-action="reviewMissed">${escapeHtml(t("Review Missed"))} (${missed.length})</button>` : ""}
+        ${nextLesson ? `<button class="pill-button" data-action="quizNextLesson">${escapeHtml(t("Next Lesson"))}</button>` : ""}
+        <button class="pill-button secondary" data-action="goHome">${escapeHtml(t("Home"))}</button>
         <button class="pill-button secondary" data-action="restartQuiz">${escapeHtml(t("Try Again"))}</button>
       </section>
     </main>
@@ -2243,6 +2249,25 @@ function recordQuizResult(questions, correct) {
   }
 }
 
+function resultNextLessonTarget() {
+  if (state.quizMode !== "topic" || state.quizSourceLessonIndex === null) return null;
+  return nextLessonTarget(state.quizSourceTopic || state.topicId, state.quizSourceLessonIndex);
+}
+
+function nextLessonTarget(topicId, lessonIndex) {
+  const topicIndex = topics.findIndex((topic) => topic.id === topicId);
+  if (topicIndex < 0) return null;
+  const topic = topics[topicIndex];
+  const nextIndex = lessonIndex + 1;
+  if (nextIndex < topic.lessons.length) return { topicId, lessonIndex: nextIndex };
+  for (let index = topicIndex + 1; index < topics.length; index += 1) {
+    if (topics[index].id !== "exam" && topics[index].lessons.length) {
+      return { topicId: topics[index].id, lessonIndex: 0 };
+    }
+  }
+  return null;
+}
+
 function whyChoiceIsWrong(choice, question) {
   const hint = serviceHint(choice);
   if (state.language === "es") {
@@ -2263,6 +2288,7 @@ function startQuiz(topicId, options = {}) {
   state.screen = "quiz";
   state.topicId = topicId;
   state.quizSourceTopic = options.sourceTopic || topicId;
+  state.quizSourceLessonIndex = typeof options.sourceLessonIndex === "number" ? options.sourceLessonIndex : null;
   state.quizMode = options.mode || (topicId === "final" ? "final" : "topic");
   state.quizIndex = 0;
   state.selected = null;
@@ -2587,7 +2613,13 @@ function act(action) {
   if (action === "shuffleFlashCards") return startFlashCards(state.flashFilterTopic);
   if (action === "prevFlashCard") return moveFlashCard(-1);
   if (action === "nextFlashCard") return moveFlashCard(1);
-  if (action === "topicQuiz") return startQuiz(state.topicId === "exam" ? "final" : state.topicId);
+  if (action === "topicQuiz") {
+    const quizTopic = state.topicId === "exam" ? "final" : state.topicId;
+    const options = state.screen === "lesson"
+      ? { sourceTopic: state.topicId, sourceLessonIndex: state.lessonIndex }
+      : {};
+    return startQuiz(quizTopic, options);
+  }
   if (action === "prevLesson") return moveLesson(-1);
   if (action === "nextLesson") return moveLesson(1);
   if (action === "markDone") {
@@ -2599,9 +2631,17 @@ function act(action) {
   if (action === "prevQuestion") return moveQuestion(-1);
   if (action === "nextQuestion") return moveQuestion(1);
   if (action === "reviewMissed") return startReviewMissed();
+  if (action === "quizNextLesson") return openQuizNextLesson();
+  if (action === "goHome") {
+    state.screen = "home";
+    return render();
+  }
   if (action === "restartQuiz") {
     if (state.quizMode === "daily") return startDailyDrill();
-    return startQuiz(state.quizSourceTopic || state.topicId);
+    return startQuiz(state.quizSourceTopic || state.topicId, {
+      sourceTopic: state.quizSourceTopic || state.topicId,
+      sourceLessonIndex: state.quizSourceLessonIndex
+    });
   }
 }
 
@@ -2678,6 +2718,15 @@ function moveQuestion(delta) {
   if (next < 0) return;
   state.quizIndex = next;
   state.selected = null;
+  render();
+}
+
+function openQuizNextLesson() {
+  const target = resultNextLessonTarget();
+  if (!target) return;
+  state.screen = "lesson";
+  state.topicId = target.topicId;
+  state.lessonIndex = target.lessonIndex;
   render();
 }
 
